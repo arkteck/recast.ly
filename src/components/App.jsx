@@ -3,38 +3,73 @@ import VideoList from './VideoList.js';
 import VideoPlayer from './VideoPlayer.js';
 import Search from './Search.js';
 import exampleVideoData from '../data/exampleVideoData.js';
-import searchYouTube from '../lib/searchYouTube.js';
+import {searchYouTube, detailsYouTube} from '../lib/searchYouTube.js';
+import {errorVideoData, errorNowPlaying} from '../data/errorData.js';
+
+var autoPlay = false;
 
 class App extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      videoList: exampleVideoData,
-      nowPlaying: exampleVideoData[0],
-      query: ''
+      data: [],
+      videoList: [],
+      nowPlaying: {},
+      query: 'Rick Astley',
+      debounceTimer: undefined
     };
     this.handleClick = this.handleClick.bind(this);
     this.handleSubmit = this.handleSubmit.bind(this);
     this.searchCallback = this.searchCallback.bind(this);
     this.handleChange = this.handleChange.bind(this);
+    this.detailsCallback = this.detailsCallback.bind(this);
+    this.handleToggle = this.handleToggle.bind(this);
+    this.handlePrevious = this.handlePrevious.bind(this);
+    this.handleNext = this.handleNext.bind(this);
   }
   handleClick(video) {
-    this.setState({nowPlaying: video});
+    console.log(video.id.videoId);
+    let videoDetails = detailsYouTube(video.id.videoId, this.detailsCallback);
   }
   handleSubmit(event) {
     event.preventDefault();
     searchYouTube(this.state.query, this.searchCallback);
   }
   searchCallback(data) {
-    this.setState({videoList: data, nowPlaying: data[0]});
+    console.log('the data', data);
+    if (data.error) {
+      this.setState({nowPlaying: errorNowPlaying, videoList: errorVideoData});
+    } else {
+      this.setState({data: data, videoList: data.items});
+      detailsYouTube(data.items[0].id.videoId, this.detailsCallback);
+
+    }
+  }
+  detailsCallback(data) {
+    this.setState({nowPlaying: data});
   }
   handleChange(event) {
     this.setState({query: event.target.value});
-    searchYouTube(this.state.query, this.searchCallback);
+    clearTimeout(this.state.debounceTimer);
+    this.setState({debounceTimer: setTimeout(searchYouTube.bind(this, event.target.value, this.searchCallback), 500)});
+
   }
   componentDidMount() {
-    // this.setState({videoList: exampleVideoData, nowPlaying: exampleVideoData[0]});
-    searchYouTube('cats', this.searchCallback);
+    searchYouTube('Rick Astley', this.searchCallback);
+  }
+  handleToggle(event) {
+    autoPlay = !autoPlay;
+  }
+  handlePrevious(event) {
+    if (this.state.data.prevPageToken) {
+      searchYouTube(this.state.query, this.searchCallback, this.state.data.prevPageToken);
+    }
+  }
+  handleNext(event) {
+    if (this.state.data.nextPageToken) {
+      searchYouTube(this.state.query, this.searchCallback, this.state.data.nextPageToken);
+
+    }
   }
   render() {
     return (
@@ -45,10 +80,17 @@ class App extends React.Component {
           </div>
         </nav>
         <div className="row">
-          <div className="col-md-7" id="videoPlayer">
-            <VideoPlayer video={this.state.nowPlaying} />
+          <div className="col-md-7">
+            <VideoPlayer video={this.state.nowPlaying} autoPlay={autoPlay}/>
           </div>
           <div className="col-md-5">
+            <span style={{paddingRight: '0.5rem' }} >AutoPlay</span>
+            <label className="switch">
+              <input type="checkbox" onClick={this.handleToggle}></input>
+              <span className="slider"></span>
+            </label>
+            <span onClick={this.handlePrevious}>Previous Page</span>
+            <span onClick={this.handleNext}>Next Page</span>
             <VideoList videos={this.state.videoList} handleClick={this.handleClick} />
           </div>
         </div>
